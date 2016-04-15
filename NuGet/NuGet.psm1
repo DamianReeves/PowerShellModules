@@ -3,12 +3,32 @@ function Find-NuGetExe {
     [CmdletBinding()]
     param(
         [string[]]
-        $SearchPaths=$null
+        $AdditionalSearchPaths=$null,
+        [switch]
+        $ExcludePathVariableFromSearch
     )
     
-    if(-not ($SearchPaths)){
-        $SearchPaths = $script:NuGetModule.Config.CommandLineSearchPaths
+    $SearchPaths = @()
+    
+    if($AdditionalSearchPaths -ne $null) {
+        $SearchPaths = $SearchPaths + $AdditionalSearchPaths
     }
+    
+    $SearchPaths = $SearchPaths + $script:NuGetModule.Config.CommandLineSearchPaths
+    
+    if(-not($ExcludePathVariableFromSearch.IsPresent)) {
+        $paths = $env:Path -split ";"
+        $SearchPaths = $SearchPaths + $paths
+    }
+       
+    foreach ($directory in $SearchPaths) {
+        $candidatePath = Join-Path $directory "nuget.exe"
+        if(Test-Path $candidatePath){
+            return Join-Path $directory "nuget.exe" -Resolve
+        }
+    }
+    
+    $null
 }
 
 function Invoke-NuGetExeDownload {
@@ -23,9 +43,29 @@ function Get-NuGetCommandLine {
 }
 
 function Restore-NuGetPackages {
+<#
+.SYNOPSIS 
+Restores NuGet packages using the available NuGet command line executable.
+
+.PARAMETER Target
+A solution file, package.config, or package.json file which is used as the basis of the restore operation if it is provided.
+
+.PARAMETER Sources
+The source feeds to use in package resolution.
+#>    
+    [CmdletBinding()]
     param(
-        $TargetDirectory
+        [Parameter(Position=0, Mandatory=$false)]
+        [string]$Target=$null,
+        [Parameter()]
+        [string[]]$Sources=$null
     )
+    
+    
+}
+
+function Ensure-NuGetExeIsAvailable {
+    
 }
 
 function Install-NuGetPackages {
@@ -44,4 +84,4 @@ $NuGetModule.Config = new-object psobject -Property @{
     CommandLineSearchPaths = @(".",".\.nuget",".\nuget",".build", (Join-Path $env:LOCALAPPDATA "NuGet\Exe\"));
 }
 
-Export-ModuleMember -Function Find-NuGetExe, Invoke-NuGetExeDownload, Install-NuGetpackages -Variable NuGetModule
+Export-ModuleMember -Function Find-NuGetExe, Invoke-NuGetExeDownload, Install-NuGetpackages, Restore-NuGetPackages -Variable NuGetModule
