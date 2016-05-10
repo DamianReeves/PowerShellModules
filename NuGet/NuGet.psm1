@@ -14,7 +14,7 @@ function Find-NuGetExe {
         $SearchPaths = $SearchPaths + $AdditionalSearchPaths
     }
     
-    $SearchPaths = $SearchPaths + $script:NuGetModule.Config.CommandLineSearchPaths
+    $SearchPaths = $SearchPaths + $script:NuGetSettings.CommandLineSearchPaths
     
     if(-not($ExcludePathVariableFromSearch.IsPresent)) {
         $paths = $env:Path -split ";"
@@ -22,7 +22,7 @@ function Find-NuGetExe {
     }
        
     foreach ($directory in $SearchPaths) {
-        $candidatePath = Join-Path $directory "nuget.exe"
+        $candidatePath = Join-Path "$directory" "nuget.exe"
         if(Test-Path $candidatePath){
             return Join-Path $directory "nuget.exe" -Resolve
         }
@@ -65,7 +65,16 @@ The source feeds to use in package resolution.
 }
 
 function Ensure-NuGetExeIsAvailable {
-    
+    [CmdletBinding()]
+    param(
+        [string[]]
+        $AdditionalSearchPaths=$null,
+        [switch]
+        $ExcludePathVariableFromSearch
+    )
+    if($Script:NuGetExe -eq $null){
+        $Script:NuGetExe = Find-NuGetExe -AdditionalSearchPaths $AdditionalSearchPaths -ExcludePathVariableFromSearch:$ExcludePathVariableFromSearch
+    }
 }
 
 function Install-NuGetPackages {
@@ -73,15 +82,39 @@ function Install-NuGetPackages {
         [Parameter(Position=0)]
         [string[]]
         $PackageIds,
+        [string]
         $OutputDirectory=$null,
-        [bool]
-        $IncludeVersion
+        [switch]
+        $Prerelease,
+        [switch]
+        $ExcludeVersion
     )
+    Ensure-NuGetExeIsAvailable
+    $nugetExe = $Script:NuGetExe
+    $commandLineArgs = @();
+    if(-not [String]::IsNullOrEmpty($OutputDirectory)){
+        $commandLineArgs += @('-OutputDirectory', $OutputDirectory)
+    }
+    
+    if($ExcludeVersion.IsPresent){
+        $commandLineArgs += @('-ExcludeVersion')
+    }
+    
+    if($Prerelease.IsPresent){
+        $commandLineArgs += @('-Prerelease')
+    }
+    
+    foreach ($package in $PackageIds) {
+        $installArgs = @("install",$package)
+        $installArgs += $commandLineArgs
+        &$nugetExe $installArgs     
+    }    
 }
 
-$script:NuGetModule = @{}
-$NuGetModule.Config = new-object psobject -Property @{
-    CommandLineSearchPaths = @(".",".\.nuget",".\nuget",".build", (Join-Path $env:LOCALAPPDATA "NuGet\Exe\"));
+$Script:NuGetExe = $null
+$script:NuGetSettings = @{}
+$NuGetSettings = new-object psobject -Property @{
+    CommandLineSearchPaths = @(".",".\.nuget",".\nuget",".build", (Join-Path $env:LOCALAPPDATA "NuGet"));
 }
 
-Export-ModuleMember -Function Find-NuGetExe, Invoke-NuGetExeDownload, Install-NuGetpackages, Restore-NuGetPackages -Variable NuGetModule
+Export-ModuleMember -Function Find-NuGetExe, Invoke-NuGetExeDownload, Install-NuGetpackages, Restore-NuGetPackages -Variable NuGetSettings

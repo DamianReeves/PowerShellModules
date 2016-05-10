@@ -21,7 +21,8 @@ PowerShellVersion = '2.0'
 # Functions to export from this module
 FunctionsToExport = @(
     'Restore-NuGetPackages',
-    'Find-NuGetExe'
+    'Find-NuGetExe',
+    'Install-NuGetPackages'
 )
 
 # # Cmdlets to export from this module
